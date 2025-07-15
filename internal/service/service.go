@@ -2,10 +2,10 @@ package service
 
 import (
 	"errors"
-	"fmt"
 	"log"
 
 	"internal-transfer-system/internal/repository"
+	"internal-transfer-system/internal/validator"
 
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -19,50 +19,26 @@ func NewService(repo *repository.Repository) *Service {
 	return &Service{repo: repo}
 }
 
-type CreateAccountRequest struct {
-	AccountID      uint   `json:"account_id" binding:"required"`
-	InitialBalance string `json:"initial_balance" binding:"required"`
-}
 
 type AccountResponse struct {
 	AccountID uint   `json:"account_id"`
 	Balance   string `json:"balance"`
 }
 
-type CreateTransactionRequest struct {
-	SourceAccountID      uint   `json:"source_account_id" binding:"required"`
-	DestinationAccountID uint   `json:"destination_account_id" binding:"required"`
-	Amount               string `json:"amount" binding:"required"`
-}
 
-func (s *Service) CreateAccount(req *CreateAccountRequest) error {
-	if req.AccountID == 0 {
-		return errors.New("account_id must be a positive integer")
+func (s *Service) CreateAccount(req *validator.CreateAccountRequest) error {
+	if err := validator.ValidateCreateAccountRequest(req, s.repo); err != nil {
+		return err
 	}
 
-	balance, err := decimal.NewFromString(req.InitialBalance)
-	if err != nil {
-		return errors.New("invalid initial_balance format")
-	}
-
-	if balance.IsNegative() {
-		return errors.New("initial_balance must be non-negative")
-	}
-
-	if balance.Exponent() < -5 {
-		return errors.New("initial_balance must have at most 5 decimal places")
-	}
-
-	if s.repo.AccountExists(req.AccountID) {
-		return errors.New("account already exists")
-	}
+	balance, _ := decimal.NewFromString(req.InitialBalance)
 
 	account := &repository.Account{
 		AccountID: req.AccountID,
 		Balance:   balance,
 	}
 
-	err = s.repo.CreateAccount(account)
+	err := s.repo.CreateAccount(account)
 	if err != nil {
 		log.Printf("Error creating account: %v", err)
 		return errors.New("failed to create account")
@@ -87,33 +63,14 @@ func (s *Service) GetAccount(accountID uint) (*AccountResponse, error) {
 	}, nil
 }
 
-func (s *Service) CreateTransaction(req *CreateTransactionRequest) error {
-	if req.SourceAccountID == req.DestinationAccountID {
-		return errors.New("cannot transfer to the same account")
+func (s *Service) CreateTransaction(req *validator.CreateTransactionRequest) error {
+	if err := validator.ValidateCreateTransactionRequest(req, s.repo); err != nil {
+		return err
 	}
 
-	amount, err := decimal.NewFromString(req.Amount)
-	if err != nil {
-		return errors.New("invalid amount format")
-	}
+	amount, _ := decimal.NewFromString(req.Amount)
 
-	if amount.LessThanOrEqual(decimal.Zero) {
-		return errors.New("amount must be greater than 0")
-	}
-
-	if amount.Exponent() < -5 {
-		return errors.New("amount must have at most 5 decimal places")
-	}
-
-	if !s.repo.AccountExists(req.SourceAccountID) {
-		return fmt.Errorf("source account %d not found", req.SourceAccountID)
-	}
-
-	if !s.repo.AccountExists(req.DestinationAccountID) {
-		return fmt.Errorf("destination account %d not found", req.DestinationAccountID)
-	}
-
-	err = s.repo.CreateTransaction(req.SourceAccountID, req.DestinationAccountID, amount)
+	err := s.repo.CreateTransaction(req.SourceAccountID, req.DestinationAccountID, amount)
 	if err != nil {
 		if err.Error() == "insufficient balance" {
 			return errors.New("insufficient balance")

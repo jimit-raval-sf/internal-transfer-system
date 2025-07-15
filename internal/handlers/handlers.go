@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"internal-transfer-system/internal/service"
+	"internal-transfer-system/internal/validator"
 
 	"github.com/gin-gonic/gin"
 )
@@ -19,7 +20,7 @@ func NewHandler(service *service.Service) *Handler {
 }
 
 func (h *Handler) CreateAccount(c *gin.Context) {
-	var req service.CreateAccountRequest
+	var req validator.CreateAccountRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
@@ -66,7 +67,7 @@ func (h *Handler) GetAccount(c *gin.Context) {
 }
 
 func (h *Handler) CreateTransaction(c *gin.Context) {
-	var req service.CreateTransactionRequest
+	var req validator.CreateTransactionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
